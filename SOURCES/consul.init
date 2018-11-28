@@ -53,8 +53,18 @@ get_port() {
         if [ -f "${config_file}" ]; then
             # grab port number from json file with some awk magic
             port=$(
-              /bin/awk '/ports/ { getline; print $2 }' "${config_file}"
+              /bin/awk '
+                /ports/ {
+                  for (i = 1; i <= NR; i++) {
+                    getline
+                    if (/http/) {
+                      print $2
+                    }
+                  }
+                }
+              ' "${config_file}"
             )
+            port="${port%,}" # strip any trailing commas
         fi
     fi
 
