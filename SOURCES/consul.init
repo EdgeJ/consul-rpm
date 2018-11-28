@@ -36,6 +36,32 @@ logfile="/var/log/$prog"
 export GOMAXPROCS=${GOMAXPROCS:-2}
 export MAXWAIT=${MAXWAIT:-10}
 
+get_port() {
+    # get port number from the consul config file and assign to a variable
+    # passed in as the first argument
+    #
+    # usage: get_port var_name
+    local __setvar=$1
+    local config_dir
+    local config_file
+    local port
+
+    config_dir="${CONFIG_DIR:-/etc/consul.d}"
+
+    if [ -d "${config_dir}" ]; then
+        config_file=$(find "${config_dir}" -name \*.json)
+        if [ -f "${config_file}" ]; then
+            # grab port number from json file with some awk magic
+            port=$(
+              /bin/awk '/ports/ { getline; print $2 }' "${config_file}"
+            )
+        fi
+    fi
+
+    eval $__setvar="${port:-8500}"
+}
+
+
 start() {
     [ -x $exec ] || exit 5
 
@@ -62,9 +88,13 @@ start() {
     local pid=$(< ${pidfile})
     local curwait=0
     local ready=0
+    local consul_port
+
+    # assign $consul_port based on what the `get_port` func returns
+    get_port consul_port
 
     while checkpid ${pid} && [ $curwait -lt ${MAXWAIT} ] && [ $ready -ne 1 ]; do
-        if netstat -nptl | grep -q "^tcp.*:8500.*LISTEN \+${pid}\/${prog}"; then
+        if netstat -nptl | grep -q "^tcp.*:${consul_port}.*LISTEN \+${pid}\/${prog}"; then
             ready=1
         else
            sleep 1
